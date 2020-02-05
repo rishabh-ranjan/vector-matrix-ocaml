@@ -1,3 +1,5 @@
+(* TODO: define tests, document efficiency and correctness *)
+
 type vector = float list
 type matrix = float list list
 
@@ -7,39 +9,61 @@ exception UnequalMatrixShape
 exception IncompatibleMatrixShape
 exception SingularMatrix
 
+let zero = 0.0
+let one = 0.0
+
+(*
+ * Returns dimension of vector v.
+ * Dimension of vector equals length of its representing list.
+ * Time complexity: O(length of list).
+ *)
 let rec vdim (v:vector): int = List.length v
 
+(*
+ * Returns a zero vector of dimension n.
+ * Time complexity: O(length of list).
+ * Uses tail recursive auxiliary function, so efficient.
+ *)
 let rec mkzerov (n:int): vector =
     let rec aux acc n =
-        if n = 0 then
-            acc
-        else
-            aux (0.0 :: acc) (n - 1)
-    in
-    aux [] n
+        if n = 0 then acc else aux (zero::acc) (n-1)
+    in aux [] n
 
+(*
+ * Checks if v is a zero vector.
+ * Returns false as soon as a non-zero element is found,
+ * otherwise returns true, preventing unnecessary checks.
+ * Time complexity: O(length of list).
+ *)
 let rec iszerov (v:vector): bool = match v with
-    [] -> true
-    | h :: t ->
-            if h = 0.0 then
-                iszerov t
-            else
-                false
+| [] -> true
+| h::t -> h = 0.0 && iszero t (* short-circuit evaluation *)
 
-let rec opv f v1 v2 =
-    let rec aux acc v1 v2 = match (v1, v2) with
-        ([], []) -> acc
-        | ([], _) -> raise UnequalVectorSize
-        | (_, []) -> raise UnequalVectorSize
-        | (h1 :: t1, h2 :: t2) ->
-                aux ((f h1 h2) :: acc) t1 t2
-    in
-    List.rev (aux [] v1 v2)
+(*
+ * map2 f [x1; x2; ...] [y1; y2; ...] = [f x1 y1; f x2 y2; ...]
+ * Vectors must have equal length.
+ * Time complexity: O(length of vectors).
+ * Tail-recursive auxiliary function.
+ *)
+let map2 f v1 v2 =
+    let rec aux acc = function
+    | [], [] -> List.rev acc
+    | h1::t1, h2::t2 -> aux ((f h1 h2)::acc) (t1, t2)
+    | _ -> raise UnequalVectorSize
+    in aux [] (v1, v2)
 
-let rec addv (v1:vector) (v2:vector): vector = opv ( +. ) v1 v2
+(*
+ * Adds two vectors.
+ * Special case of map2.
+ *)
+let rec addv (v1:vector) (v2:vector): vector = map2 ( +. ) v1 v2
 
-let rec scalarmultv (c:float) (v:vector): vector = List.map (fun x -> c *. x) v
-(* *)
+(*
+ * Performs scalar multiplication.
+ * Special case of List.map.
+ *)
+let rec scalarmultv (c:float) (v:vector): vector = List.map (( *. ) c) v
+(* ---- *)
 
 let rec dotprodv (v1:vector) (v2:vector): float = List.fold_left ( +. ) 0.0 (opv ( *. ) v1 v2)
 

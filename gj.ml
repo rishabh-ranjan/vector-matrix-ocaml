@@ -1,7 +1,7 @@
 exception SingularMatrix
 
-let zero = 0.0
-let one = 1.0
+let zero = 0
+let one = 1
 
 let pivot l =
     let rec aux sel rem fnd = function
@@ -9,13 +9,13 @@ let pivot l =
     | (hh::_, _ as h)::t ->
         if not fnd && hh <> zero then aux h rem true t
         else aux sel (h::rem) fnd t
-    in aux [] [] false l
+    in aux ([],[]) [] false l
 
 let map2 f l1 l2 =
     let rec aux acc = function
     | [], [] -> List.rev acc
     | h1::t1, h2::t2 -> aux ((f h1 h2)::acc) (t1, t2)
-    in aux [] l1 l2
+    in aux [] (l1, l2)
 
 let zip m1 m2 = map2 (fun l1 l2 -> (l1, l2)) m1 m2
 
@@ -32,15 +32,16 @@ let rec mkunitm n =
 
 let inv m =
     let rec aux top = function 
-    | [] -> top
+    | [] -> [], [](*top*)
     | _ as l ->
         let sel, rem, fnd = pivot l in
         if not fnd then raise SingularMatrix else
-        let htop::ttop, atop = top in
+        let htop::ttop, atop = sel in
         let rec prep acc = function
         | [] -> acc
         | (hh::th, a)::t ->
-            let f x y = x -. y *. hh /. htop in
+            let f x y = x - y * hh / htop in
             prep (((map2 f th ttop), (map2 f a atop))::acc) t
-        in aux (List.rev (sel::(prep [] top)) (List.rev (prep [] rem))
-        in aux [] m 
+        (*in aux (List.rev (sel::(prep [] top))) (List.rev (prep [] rem))*)
+        in (List.rev ((((List.tl (fst sel)),(snd sel))::(prep [] top))), (List.rev (prep [] rem)))
+    in aux [] (zip m (mkunitm (List.length m)))
