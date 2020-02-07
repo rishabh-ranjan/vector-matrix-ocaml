@@ -65,11 +65,19 @@ let rec addv (v1:vector) (v2:vector): vector = map2 ( +. ) v1 v2
  *)
 let rec scalarmultv (c:float) (v:vector): vector = List.map (( *. ) c) v
 
+(*
+ * Returns the dot product of v1 and v2.
+ * Efficient O(n) implementation using List.fold_left.
+ *)
 let rec dotprodv (v1:vector) (v2:vector): float = List.fold_left ( +. ) zero (map2 ( *. ) v1 v2)
 
-(* TODO: implement the n dimensional generalisation! *)
-(* https://math.stackexchange.com/questions/185991/is-the-vector-cross-product-only-defined-for-3d *)
+(*
+ * Returns the cross product of 2 3-dimensional vectors v1 and v2.
+ * Error if dimension is not 3.
+ * Direct formula is used.
+ *)
 let rec crossprodv (v1:vector) (v2:vector): vector =
+    if ((vdim v1) <> 3) || ((vdim v2) <> 3) then raise InvalidInput else
     (* assuming 3d vectors; using standard formula *)
     match v1, v2 with [x1; y1; z1], [x2; y2; z2] ->
         [
@@ -78,6 +86,11 @@ let rec crossprodv (v1:vector) (v2:vector): vector =
             x1 *. y2 -. x2 *. y1;
         ]
     | _ -> raise InvalidInput
+
+(*
+ * NOTE: generalised cross product is implemented after
+ * the definition of detm.
+ *)
 
 (*
  * Return dimensions (rows, columns) of m.
@@ -263,6 +276,8 @@ let pivotinv lst =
  * Returns determinant of m.
  * Logic: Triangularize m, the take the product of diagonal elements.
  * Time complexity: O(n^3), where n is the number of rows in m.
+ * NOTE: runtime of (detm (mkunitm 500)) is ~ 5s on my PC.
+ * (see timed_detm function in testing section)
  *)
 let rec detm (m:matrix): float =
     (* res stores final determinant value *)
@@ -274,7 +289,7 @@ let rec detm (m:matrix): float =
         let htop, ttop = List.hd top, List.tl top in (* top is guaranteed to be non-[] here *)
         (* prepare matrix for next round of processing *)
         let rec pmat acc = function
-        | [] -> acc
+        | [] -> List.rev acc
         | (hh::th)::t ->
             let mf = hh /. htop in
             (* prepare row for next round of processing *)
@@ -285,8 +300,8 @@ let rec detm (m:matrix): float =
             in pmat ((prow [] th ttop)::acc) t
         | _ -> raise InvalidInput
         in
-        (* adjust sign of res for swaps and reversal of row order *)
-        let neg = if ((n-1)/2 mod 2 = 1) <> (hh = zero) then -. one else one in
+        (* adjust sign of res for pivoting *)
+        let neg = if hh = zero then -. one else one in
         aux (n-1) (neg *. res *. htop) (pmat [] rem)
     | _ -> raise InvalidInput
     in aux (List.length m) one m
@@ -296,6 +311,8 @@ let rec detm (m:matrix): float =
  * Error if matrix is singular.
  * Logic: Gauss Jordan elimination is used.
  * Time complexity: O(n^3).
+ * NOTE: runtime of (invm (mkunitm 500)) is ~ 36s on my PC.
+ * (see timed_invm function in testing section)
  *)
 let rec invm (m:matrix): matrix =
     (*
@@ -321,6 +338,30 @@ let rec invm (m:matrix): matrix =
     (* m is augmented by pairing each row with a unit matrix row *)
     in aux [] (map2 (fun x y -> (x, y)) m (mkunitm (List.length m)))
 
+(*
+ * m is an (n-1) x n matrix.
+ * Returns an n-dimensional vector representing the generalized
+ * cross product of the (n-1) row vectors of m.
+ * Time complexity: O(n^4).
+ * Logic: Each part of resulting vector is a cofactor,
+ * which can be easily computed using the detm function
+ * in O(n^3) giving a total of O(n^4).
+ *)
+let rec crossprodvgen (m:matrix): vector =
+    let r, c = mdim m in
+    if r <> c - 1 then raise InvalidInput else
+    let cofactor i =
+        let rec partial_copy acc i = function
+        | [] -> List.rev acc
+        | h::t -> partial_copy (if i = 0 then acc else (h::acc)) (i-1) t 
+        in
+        (if i mod 2 = 0 then 1.0 else -1.0) *. (detm (List.map (partial_copy [] i) m))
+    in
+    let rec aux acc i =
+        if i = (List.length m) + 1 then List.rev acc
+        else aux ((cofactor i)::acc) (i+1)
+    in aux [] 0
+
 (* === testing === *)
 (* The code has been thoroughly tested.
  * These functions were used to generate random tests.
@@ -341,7 +382,7 @@ let rec invm (m:matrix): matrix =
  * range is a good enough test.
  *
  * The testing was done in the ocaml toplevel as follows:
- * 1. '#use "<filename>.ml";;" loads functions defined here.
+ * 1. '#use "<filename>.ml";;' loads functions defined here.
  * 2. define some matrices.
  * 3. test using above properties.
  * 4. perform some direct tests.
@@ -361,3 +402,21 @@ let rec genm m n =
         if m = 0 then acc
         else aux ((genv n)::acc) (m-1)
     in aux [] m
+
+(*
+ * Prints time taken for determinant of matrix m,
+ * and returns value returned by detm m.
+ *)
+let timed_detm m =
+    let init = Sys.time() in
+    let r = detm m in
+    Printf.printf "Time taken: %fs\n" (Sys.time() -. init); r
+
+(*
+ * Prints time taken for inverse of matrix m,
+ * and returns value returned by invm m.
+ *)
+let timed_invm m =
+    let init = Sys.time() in
+    let r = invm m in
+    Printf.printf "Time taken: %fs\n" (Sys.time() -. init); r
